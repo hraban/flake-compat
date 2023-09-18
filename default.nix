@@ -5,7 +5,13 @@
 # containing 'defaultNix' (to be used in 'default.nix'), 'shellNix'
 # (to be used in 'shell.nix').
 
-{ src, system ? builtins.currentSystem or "unknown-system" }:
+{
+  src
+, system ? builtins.currentSystem or "unknown-system"
+# TODO: extract this from the flake itself? No, wait, you can’t do that because
+# the flake might not actually provide nixpkgs... maybe make it optional?
+, pkgs
+}:
 
 let
 
@@ -29,10 +35,17 @@ let
       }
     else if info.type == "git" then
       { outPath =
-          builtins.fetchGit
-            ({ url = info.url; }
-             // (if info ? rev then { inherit (info) rev; } else {})
-             // (if info ? ref then { inherit (info) ref; } else {})
+          # Use nixpkgs.fetchgit precisely because it is fixed output
+          pkgs.fetchgit
+            ({
+              name = "source";
+              url = info.url;
+              sha256 = info.narHash;
+             }
+             // (
+               if info ? rev then { inherit (info) rev; }
+               else if info ? ref then { rev = info.ref; }
+               else {})
              // (if info ? submodules then { inherit (info) submodules; } else {})
             );
         lastModified = info.lastModified;
