@@ -22,20 +22,18 @@ let
   fetchTree =
     info:
     if info.type == "github" then
-      { outPath =
-          fetchTarball
-            ({ url = "https://api.${info.host or "github.com"}/repos/${info.owner}/${info.repo}/tarball/${info.rev}"; }
-             // (if info ? narHash then { sha256 = info.narHash; } else {})
-            );
-        rev = info.rev;
+      { outPath = pkgs.fetchFromGitHub ({
+          inherit (info) owner repo rev;
+          hash = info.narHash;
+        } // pkgs.lib.optionalAttrs (info ? host) {
+          githubBase = info.host;
+        });
+        inherit (info) rev narHash lastModified;
         shortRev = builtins.substring 0 7 info.rev;
-        lastModified = info.lastModified;
         lastModifiedDate = formatSecondsSinceEpoch info.lastModified;
-        narHash = info.narHash;
       }
     else if info.type == "git" then
       { outPath =
-          # Use nixpkgs.fetchgit precisely because it is fixed output
           pkgs.fetchgit
             ({
               name = "source";
@@ -62,18 +60,23 @@ let
       }
     else if info.type == "tarball" then
       { outPath =
-          fetchTarball
-            ({ inherit (info) url; }
+          pkgs.fetchzip
+            ({
+              inherit (info) url;
+              name = "source";
+            }
              // (if info ? narHash then { sha256 = info.narHash; } else {})
             );
       }
     else if info.type == "gitlab" then
       { inherit (info) rev narHash lastModified;
         outPath =
-          fetchTarball
-            ({ url = "https://${info.host or "gitlab.com"}/api/v4/projects/${info.owner}%2F${info.repo}/repository/archive.tar.gz?sha=${info.rev}"; }
-             // (if info ? narHash then { sha256 = info.narHash; } else {})
-            );
+          pkgs.fetchFromGitLab ({
+            inherit (info) repo owner rev;
+            hash = info.narHash;
+          } // pkgs.lib.optionalAttrs (info ? host) {
+            domain = info.host;
+          });
         shortRev = builtins.substring 0 7 info.rev;
       }
     else if info.type == "sourcehut" then
