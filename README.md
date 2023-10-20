@@ -1,4 +1,8 @@
-# flake-compat
+# Fixed-Output Derivation version of flake-compat
+
+This is a fork of [flake-compat](https://github.com/edolstra/flake-compat) which uses fetchers from `nixpkgs` to create fixed-output derivations.
+
+This flake compat fork therefore only works if you have access to a copy of nixpkgs.
 
 A compatibility shim to use Nix flakes with versions of Nix that don't have native flake support.
 
@@ -21,7 +25,7 @@ To use, add the following to your `flake.nix`:
 
 ```nix
 inputs.flake-compat = {
-  url = "github:NixOS/flake-compat";
+  url = "github:hraban/flake-compat/fixed-output";
   flake = false;
 };
 ```
@@ -29,18 +33,19 @@ inputs.flake-compat = {
 Afterwards, create a `default.nix` file containing the following:
 
 ```nix
-(import (
-  let
-    lock = builtins.fromJSON (builtins.readFile ./flake.lock);
-    nodeName = lock.nodes.root.inputs.flake-compat;
-  in
-  fetchTarball {
-    url =
-      lock.nodes.${nodeName}.locked.url
-        or "https://github.com/NixOS/flake-compat/archive/${lock.nodes.${nodeName}.locked.rev}.tar.gz";
-    sha256 = lock.nodes.${nodeName}.locked.narHash;
-  }
-) { src = ./.; }).defaultNix
+# Alternatively, you could lock nixpkgs in your flake.lock and fetch that, if you preferred
+{ pkgs ? import <nixpkgs> {} }:
+let
+  lock = builtins.fromJSON (builtins.readFile ./flake.lock);
+  nodeName = lock.nodes.root.inputs.flake-compat;
+  sourceInfo = lock.nodes.${nodeName}.locked;
+  flake-compat = fetchTarball {
+    url = "https://github.com/${sourceInfo.owner}/${sourceInfo.repo}/archive/${sourceInfo.rev}.tar.gz";
+    sha256 = sourceInfo.narHash;
+  };
+  flake = pkgs.callPackage flake-compat { src = ./.; }
+in
+flake.defaultNix
 ```
 
 If you would like a `shell.nix` file, create one containing the above, replacing `defaultNix` with `shellNix`.
@@ -69,3 +74,14 @@ Improvements are welcomed. Some tips to make that a success:
 `flake-compat` is part of the Nix/NixOS community, which is supported by the NixOS Foundation.
 
 Here's how you can [help out financially](https://nixos.org/donate/).
+
+## Rationale
+
+This fork was created for [`cl-nix-lite`](https://github.com/hraban/cl-nix-lite), because of the large amount of inputs, most of them being unnecessary for actual end users of the scope.
+
+See:
+
+- [Nix: what are fixed-output derivations and why use them?](https://bmcgee.ie/posts/2023/02/nix-what-are-fixed-output-derivations-and-why-use-them/)
+- [Nixpkgs Fetchers](https://ryantm.github.io/nixpkgs/builders/fetchers/)
+- [Nix Discourse thread on Fixed-Output derivations](https://discourse.nixos.org/t/using-fixed-output-paths-for-a-derivation/6338/4)
+- [Nix Discourse thread on the different kinds of fetchers](https://discourse.nixos.org/t/why-is-fetchtarball-not-mentioned-in-chapter-11-fetchers-of-the-nixpkgs-manual/15319/2)
