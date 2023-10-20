@@ -82,14 +82,14 @@ let
     else if info.type == "sourcehut" then
       { inherit (info) rev narHash lastModified;
         outPath =
-          fetchTarball
-            ({ url = "https://${info.host or "git.sr.ht"}/${info.owner}/${info.repo}/archive/${info.rev}.tar.gz"; }
-             // (if info ? narHash then { sha256 = info.narHash; } else {})
-            );
+          pkgs.fetchFromSourceHut ({
+            inherit (info) owner repo rev narHash;
+          } // pkgs.lib.optionalAttrs (info ? host) {
+            domain = info.host;
+          });
         shortRev = builtins.substring 0 7 info.rev;
       }
     else
-      # FIXME: add Mercurial, tarball inputs.
       throw "flake input has unsupported input type '${info.type}'";
 
   callFlake4 = flakeSrc: locks:
