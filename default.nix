@@ -82,8 +82,9 @@ let
     else if info.type == "sourcehut" then
       { inherit (info) rev narHash lastModified;
         outPath =
-          pkgs.fetchFromSourceHut ({
-            inherit (info) owner repo rev narHash;
+          pkgs.fetchFromSourcehut ({
+            inherit (info) owner repo rev;
+            hash = info.narHash;
           } // pkgs.lib.optionalAttrs (info ? host) {
             domain = info.host;
           });
