@@ -110,6 +110,7 @@ let
         {
           inherit (info) owner repo rev;
           hash = info.narHash;
+          passthru.evalTime = fetchEval.github info;
         }
         // pkgs.lib.optionalAttrs (info ? host) {
           githubBase = info.host;
@@ -122,6 +123,7 @@ let
           name = "source";
           url = info.url;
           sha256 = info.narHash;
+          passthru.evalTime = fetchEval.git info;
         }
         // (
           if info ? rev then
@@ -139,6 +141,7 @@ let
         {
           inherit (info) url;
           name = "source";
+          passthru.evalTime = fetchEval.tarball info;
         }
         // (if info ? narHash then { narHash = info.narHash; } else { })
       );
@@ -148,6 +151,7 @@ let
         {
           inherit (info) repo owner rev;
           hash = info.narHash;
+          passthru.evalTime = fetchEval.gitlab info;
         }
         // pkgs.lib.optionalAttrs (info ? host) {
           domain = info.host;
@@ -159,6 +163,7 @@ let
         {
           inherit (info) owner repo rev;
           hash = info.narHash;
+          passthru.evalTime = fetchEval.sourcehut info;
         }
         // pkgs.lib.optionalAttrs (info ? host) {
           domain = info.host;
