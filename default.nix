@@ -21,83 +21,121 @@ let
 
   lockFile = builtins.fromJSON (builtins.readFile lockFilePath);
 
+  getMeta = {
+    github = info: {
+      inherit (info) rev narHash lastModified;
+      shortRev = builtins.substring 0 7 info.rev;
+      lastModifiedDate = formatSecondsSinceEpoch info.lastModified;
+    };
+    git =
+      info:
+      {
+        lastModified = info.lastModified;
+        lastModifiedDate = formatSecondsSinceEpoch info.lastModified;
+        narHash = info.narHash;
+        revCount = info.revCount or 0;
+      }
+      // (
+        if info ? rev then
+          {
+            rev = info.rev;
+            shortRev = builtins.substring 0 7 info.rev;
+          }
+        else
+          { }
+      );
+    path = info: { inherit (info) narHash; };
+    gitlab = info: {
+      inherit (info) rev narHash lastModified;
+      shortRev = builtins.substring 0 7 info.rev;
+    };
+    sourcehut = info: {
+      inherit (info) rev narHash lastModified;
+      shortRev = builtins.substring 0 7 info.rev;
+    };
+  };
+
+  fetchEval = {
+    path =
+      info:
+      builtins.path {
+        path = info.path;
+        sha256 = info.narHash;
+      };
+  };
+
+  fetchFOD = {
+    github =
+      info:
+      pkgs.fetchFromGitHub (
+        {
+          inherit (info) owner repo rev;
+          hash = info.narHash;
+        }
+        // pkgs.lib.optionalAttrs (info ? host) {
+          githubBase = info.host;
+        }
+      );
+    git =
+      info:
+      pkgs.fetchgit (
+        {
+          name = "source";
+          url = info.url;
+          sha256 = info.narHash;
+        }
+        // (
+          if info ? rev then
+            { inherit (info) rev; }
+          else if info ? ref then
+            { rev = info.ref; }
+          else
+            { }
+        )
+        // (if info ? submodules then { inherit (info) submodules; } else { })
+      );
+    tarball =
+      info:
+      pkgs.fetchzip (
+        {
+          inherit (info) url;
+          name = "source";
+        }
+        // (if info ? narHash then { sha256 = info.narHash; } else { })
+      );
+    gitlab =
+      info:
+      pkgs.fetchFromGitLab (
+        {
+          inherit (info) repo owner rev;
+          hash = info.narHash;
+        }
+        // pkgs.lib.optionalAttrs (info ? host) {
+          domain = info.host;
+        }
+      );
+    sourcehut =
+      info:
+      pkgs.fetchFromSourcehut (
+        {
+          inherit (info) owner repo rev;
+          hash = info.narHash;
+        }
+        // pkgs.lib.optionalAttrs (info ? host) {
+          domain = info.host;
+        }
+      );
+  };
+
   fetchTree =
     info:
-      if info.type == "github" then
-        { outPath = pkgs.fetchFromGitHub ({
-            inherit (info) owner repo rev;
-            hash = info.narHash;
-          } // pkgs.lib.optionalAttrs (info ? host) {
-            githubBase = info.host;
-          });
-          inherit (info) rev narHash lastModified;
-          shortRev = builtins.substring 0 7 info.rev;
-          lastModifiedDate = formatSecondsSinceEpoch info.lastModified;
-        }
-      else if info.type == "git" then
-        { outPath =
-            pkgs.fetchgit
-              ({
-                name = "source";
-                url = info.url;
-                sha256 = info.narHash;
-               }
-               // (
-                 if info ? rev then { inherit (info) rev; }
-                 else if info ? ref then { rev = info.ref; }
-                 else {})
-               // (if info ? submodules then { inherit (info) submodules; } else {})
-              );
-          lastModified = info.lastModified;
-          lastModifiedDate = formatSecondsSinceEpoch info.lastModified;
-          narHash = info.narHash;
-        } // (if info ? rev then {
-          rev = info.rev;
-          shortRev = builtins.substring 0 7 info.rev;
-        } else {
-        })
-      else if info.type == "path" then
-        {
-          outPath = builtins.path {
-            path = info.path;
-            sha256 = info.narHash;
-          };
-          narHash = info.narHash;
-        }
-      else if info.type == "tarball" then
-        { outPath =
-            pkgs.fetchzip
-              ({
-                inherit (info) url;
-                name = "source";
-              }
-               // (if info ? narHash then { sha256 = info.narHash; } else {})
-              );
-        }
-      else if info.type == "gitlab" then
-        { inherit (info) rev narHash lastModified;
-          outPath =
-            pkgs.fetchFromGitLab ({
-              inherit (info) repo owner rev;
-              hash = info.narHash;
-            } // pkgs.lib.optionalAttrs (info ? host) {
-              domain = info.host;
-            });
-          shortRev = builtins.substring 0 7 info.rev;
-        }
-      else if info.type == "sourcehut" then
-        { inherit (info) rev narHash lastModified;
-          outPath =
-            pkgs.fetchFromSourcehut ({
-              inherit (info) owner repo rev;
-              hash = info.narHash;
-            } // pkgs.lib.optionalAttrs (info ? host) {
-              domain = info.host;
-            });
-          shortRev = builtins.substring 0 7 info.rev;
-        }
-      else
-        throw "flake input has unsupported input type '${info.type}'";
+    let
+      f =
+        fetchFOD.${info.type} or fetchEval.${info.type}
+          or (throw "flake input has unsupported input type '${info.type}'");
+      m = getMeta.${info.type} or (_: { });
+    in
+    { outPath = f info; } // m info;
 
   callFlake4 =
     flakeSrc: locks:
